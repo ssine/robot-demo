@@ -1,21 +1,8 @@
 #include "rb_camera_ocv.h"
 #include <sys/time.h>
 
-static int _camera_id;
-static int _width;
-static int _height;
-static int _frame_rate;
-static bool _image_compress;
-
-std::string _input_format;
-std::string _output_format;
-std::string _topic_name;
-
-ros::Publisher cam_pub, cam_compress_pub;
-
-
 /* Callback for appsink to parse the video stream and publish images. */
-static GstFlowReturn processData(GstElement * sink, RbCamera::CustomData * data)
+static GstFlowReturn processData(GstElement * sink, RbCamera * node)
 {
 
   GstSample * sample;
@@ -63,15 +50,14 @@ static GstFlowReturn processData(GstElement * sink, RbCamera::CustomData * data)
 
     // Publish camera image
     sensor_msgs::msg::Image cam_msg;
-    std_msgs::Header header;
-    header.seq = 0;
-    header.stamp = ros::Time::now();
-    bridge = cv_bridge::CvImage(header, sensor_msgs::msg::image_encodings::RGB8, frame_rgb);
+    std_msgs::msg::Header header;
+    header.stamp = rclcpp::Clock().now();
+    bridge = cv_bridge::CvImage(header, sensor_msgs::image_encodings::RGB8, frame_rgb);
     bridge.toImageMsg(cam_msg);
-    cam_pub.publish(cam_msg);
+    node->cam_pub->publish(cam_msg);
 
     // Publish camera frame
-    if (_image_compress) {
+    if (node->image_compress) {
       sensor_msgs::msg::CompressedImage cam_compress_msg;
       cam_compress_msg.header.stamp = header.stamp;
       std::vector<int> p;
@@ -82,7 +68,7 @@ static GstFlowReturn processData(GstElement * sink, RbCamera::CustomData * data)
       cv::cvtColor(frame_rgb, frame_bgr, cv::COLOR_RGB2BGR);
       cv::imencode(".jpg", frame_bgr, cam_compress_msg.data, p);
 
-      cam_compress_pub.publish(cam_compress_msg);
+      node->cam_compress_pub->publish(cam_compress_msg);
     }
 
     // free resources
@@ -95,24 +81,47 @@ static GstFlowReturn processData(GstElement * sink, RbCamera::CustomData * data)
   return GST_FLOW_ERROR;
 }
 
-RbCamera::RbCamera(
-  int camera_id_,
-  int width_,
-  int height_,
-  int frame_rate_,
-  std::string input_format_,
-  std::string output_format_
-)
+RbCamera::RbCamera()
+: rclcpp::Node::Node("camera")
 {
+  this->declare_parameter("camera_id", 0);
+  camera_id = this->get_parameter("camera_id").as_int();
+  std::cout << "camera_id: " << camera_id << std::endl;
+
+  this->declare_parameter("frame_rate", 30);
+  frame_rate = this->get_parameter("frame_rate").as_int();
+  std::cout << "frame_rate: " << frame_rate << std::endl;
+
+  this->declare_parameter("width", 1920);
+  width = this->get_parameter("width").as_int();
+  std::cout << "width: " << width << std::endl;
+
+  this->declare_parameter("height", 1080);
+  height = this->get_parameter("height").as_int();
+  std::cout << "height: " << height << std::endl;
+
+  this->declare_parameter("input_format", "NV12");
+  input_format = this->get_parameter("input_format").as_string();
+  std::cout << "input_format: " << input_format << std::endl;
+
+  this->declare_parameter("output_format", "RGB");
+  output_format = this->get_parameter("output_format").as_string();
+  std::cout << "output_format: " << output_format << std::endl;
+
+  this->declare_parameter("topic_name", "camera" + std::to_string(camera_id));
+  auto topic_name = this->get_parameter("topic_name").as_string();
+  std::cout << "topic_name: " << topic_name << std::endl;
+
+  this->declare_parameter("image_compress", true);
+  image_compress = this->get_parameter("image_compress").as_bool();
+  std::cout << "image_compress: " << image_compress << std::endl;
+
+  cam_pub = this->create_publisher<sensor_msgs::msg::Image>("camera", 10);
+  cam_compress_pub = this->create_publisher<sensor_msgs::msg::CompressedImage>(
+    "camera/compressed",
+    10);
 
   gst_init(0, nullptr);
-
-  camera_id = camera_id_;
-  width = width_;
-  height = height_;
-  frame_rate = frame_rate_;
-  input_format = input_format_;
-  output_format = output_format_;
 
   std::string input_caps = "video/x-raw,format=" + input_format +
     ",framerate=" + std::to_string(frame_rate) + "/1" +
@@ -124,7 +133,7 @@ RbCamera::RbCamera(
   std::cout << "input caps: " << input_caps << std::endl;
   std::cout << "output caps: " << output_caps << std::endl;
 
-  if (camera_id == 0 or _camera_id == 1) {
+  if (camera_id == 0 or camera_id == 1) {
     data.source = gst_element_factory_make("qtiqmmfsrc", "source");
   } else {
     data.source = gst_element_factory_make("autovideosrc", "source");
@@ -167,8 +176,6 @@ RbCamera::RbCamera(
   g_object_set(
     G_OBJECT(data.capsfilterapp), "caps",
     gst_caps_from_string(output_caps.c_str()), nullptr);
-
-
 }
 
 RbCamera::~RbCamera()
@@ -182,7 +189,7 @@ void RbCamera::init()
 {
   g_object_set(data.appsink, "emit-signals", TRUE, nullptr);
   g_object_set(G_OBJECT(data.source), "camera", camera_id, NULL);
-  g_signal_connect(data.appsink, "new-sample", G_CALLBACK(processData), &data);
+  g_signal_connect(data.appsink, "new-sample", G_CALLBACK(processData), this);
 
   // play
   ret = gst_element_set_state(data.pipeline, GST_STATE_PLAYING);
@@ -231,44 +238,9 @@ void RbCamera::init()
 
 int main(int argc, char * argv[])
 {
-  ros::init(argc, argv, "rb_camera");
-  ros::NodeHandle n;
-  ros::NodeHandle private_nh("~");
-
-  private_nh.param("camera_id", _camera_id, 0);
-  ROS_INFO("camera_id: %d", _camera_id);
-  private_nh.param("frame_rate", _frame_rate, 30);
-  ROS_INFO("frame_rate: %d", _frame_rate);
-  private_nh.param("width", _width, 1920);
-  ROS_INFO("width: %d", _width);
-  private_nh.param("height", _height, 1080);
-  ROS_INFO("height: %d", _height);
-  private_nh.param<std::string>("input_format", _input_format, "NV12");
-  ROS_INFO("input_format: %s", _input_format.c_str());
-  private_nh.param<std::string>("output_format", _output_format, "RGB");
-  ROS_INFO("output_format: %s", _output_format.c_str());
-  private_nh.param<std::string>(
-    "topic_name", _topic_name,
-    std::string("camera") + std::to_string(_camera_id));
-  ROS_INFO("topic_name: %s", _topic_name.c_str());
-  private_nh.param("image_compress", _image_compress, true);
-  ROS_INFO("image_compress: %d", _image_compress);
-
-  cam_pub = n.advertise<sensor_msgs::msg::Image>(_topic_name.c_str(), 10);
-  if (_image_compress) {
-    cam_compress_pub =
-      n.advertise<sensor_msgs::msg::CompressedImage>(
-      (_topic_name + std::string(
-        "/compressed")).c_str(), 10);
-  }
-
-  RbCamera cam(
-    _camera_id,
-    _width,
-    _height,
-    _frame_rate,
-    _input_format,
-    _output_format
-  );
-  cam.init();
+  rclcpp::init(argc, argv);
+  auto node = std::make_shared<RbCamera>();
+  node->init();
+  rclcpp::spin(node);
+  rclcpp::shutdown();
 }

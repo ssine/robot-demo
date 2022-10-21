@@ -39,6 +39,9 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 add_executable(camera src/rb_camera_ocv_node.cpp)
+
+target_link_libraries(camera ${GST_APP_LIBRARIES} ${GST_VIDEO_LIBRARIES})
+
 ament_target_dependencies(camera rclcpp cv_bridge sensor_msgs)
 install(TARGETS
   camera

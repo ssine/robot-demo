@@ -1,7 +1,10 @@
-build:
+build: FORCE
 	colcon build \
 		--merge-install \
 		--symlink-install
+
+clean:
+	rm -rf build install log
 
 build-docker:
 	cd script && docker build -t sineliu/ros - < Dockerfile
@@ -22,3 +25,5 @@ attach-docker:
 rm-docker:
 	docker stop ros
 	docker rm ros
+
+FORCE: ;

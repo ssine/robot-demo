@@ -3,13 +3,13 @@
 #include <stdio.h>
 #include <sstream>
 #include <rclcpp/rclcpp.hpp>
-#include <ros/console.h>
+// #include <ros/console.hpp>
 #include <gst/gst.h>
 #include <glib.h>
 #include "opencv2/opencv.hpp"
 #include <cv_bridge/cv_bridge.h>
-#include "sensor_msgs/Image.h"
-#include "sensor_msgs/CompressedImage.h"
+#include <sensor_msgs/msg/image.h>
+#include <sensor_msgs/msg/compressed_image.h>
 #include <string>
 
 class RbCamera

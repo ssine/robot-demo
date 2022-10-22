@@ -1,7 +1,7 @@
 {
-    "editor.tabSize": 8,
+    "editor.tabSize": 2,
     "editor.rulers": [
-        100
+        120
     ],
     "files.associations": {
         "*.repos": "yaml",
@@ -136,5 +136,8 @@
         ".vscode-insiders",
         ".devcontainer/devcontainer.json"
     ],
-    "cmake.sourceDirectory": "${workspaceFolder}/src/camera"
+    "cmake.sourceDirectory": "${workspaceFolder}/src/camera",
+    "python.formatting.yapfArgs": [
+        "--style={based_on_style: pep8, indent_width: 2, column_limit: 120}"
+    ]
 }

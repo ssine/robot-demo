@@ -12,7 +12,9 @@ build-docker:
 run-docker:
 	docker run -itd \
 		-v /home/sine:/home/sine \
+		--privileged \
 		--network=host \
+		--runtime nvidia \
 		--cap-add=SYS_PTRACE \
 		--security-opt=seccomp:unconfined \
 		--security-opt=apparmor:unconfined \

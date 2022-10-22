@@ -16,7 +16,7 @@ RUN apt-get install -y ros-humble-rviz2 ros-humble-rqt-graph ros-humble-image-tr
 RUN apt-get install -y python3-pip \
     && pip install megapi pyserial
 
-RUN apt-get install -y tmux ros-humble-tf-transformations
+RUN apt-get install -y tmux openssh-client ros-humble-tf-transformations
 
 RUN pip install apriltag transforms3d
 

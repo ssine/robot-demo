@@ -61,7 +61,7 @@ class AprilDetectorNode(Node):
       tfs = TransformStamped()
       tfs.header.stamp = self.get_clock().now().to_msg()
       tfs.header.frame_id = 'camera_0'
-      tfs.child_frame_id = f'camera_0_t_{detection.tag_id}'
+      tfs.child_frame_id = f'det_tag_{detection.tag_id}'
       tfs.transform.translation = Vector3(x=float(t[0]), y=float(t[1]), z=float(t[2]))
       tfs.transform.rotation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
       self.caster.sendTransform(tfs)

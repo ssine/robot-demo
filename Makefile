@@ -12,6 +12,7 @@ build-docker:
 run-docker:
 	docker run -itd \
 		-v /home/sine:/home/sine \
+		-v /dev/shm:/dev/shm \
 		--privileged \
 		--network=host \
 		--runtime nvidia \

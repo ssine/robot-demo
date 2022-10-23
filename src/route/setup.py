@@ -7,8 +7,7 @@ setup(
     version='0.0.0',
     packages=[package_name],
     data_files=[
-        ('share/ament_index/resource_index/packages',
-            ['resource/' + package_name]),
+        ('share/ament_index/resource_index/packages', ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
     install_requires=['setuptools'],
@@ -19,8 +18,6 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': [
-            'main = route.key_joy_node:main'
-        ],
+        'console_scripts': ['main = route.key_joy_node:main', 'hw1 = route.hw1:main', 'hw2 = route.hw2:main'],
     },
 )

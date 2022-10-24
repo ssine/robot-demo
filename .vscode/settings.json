@@ -138,7 +138,7 @@
         ".vscode-insiders",
         ".devcontainer/devcontainer.json"
     ],
-    "cmake.sourceDirectory": "${workspaceFolder}/src/camera",
+    "cmake.sourceDirectory": "${workspaceFolder}/build/interface/interface__py",
     "python.formatting.yapfArgs": [
         "--style={based_on_style: pep8, indent_width: 2, column_limit: 120}"
     ]

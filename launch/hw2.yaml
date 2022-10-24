@@ -1,0 +1,10 @@
+launch:
+  - node:
+      pkg: "camera"
+      exec: "main"
+  - node:
+      pkg: "april"
+      exec: "main"
+  - node:
+      pkg: "control"
+      exec: "main"

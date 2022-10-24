@@ -92,7 +92,7 @@ def main():
 
   rclpy.init()
   mpi_ctrl_node = MegaPiControllerNode()
-  #   rclpy.spin(mpi_ctrl_node)
+  rclpy.spin(mpi_ctrl_node)
   rclpy.shutdown()
 
 

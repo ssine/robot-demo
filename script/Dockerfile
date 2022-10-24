@@ -22,6 +22,8 @@ RUN pip install apriltag transforms3d
 
 RUN sed -i '86 i \ \ \ \ \ \ \ \ th.daemon = True' /usr/local/lib/python3.10/dist-packages/megapi_python3.py
 
+RUN echo "source /opt/ros/humble/setup.bash\nsource ./install/setup.bash" >> /etc/profile.d/ros.sh
+
 # forward display to workstation
 ENV DISPLAY=192.168.2.68:0
 ENV LIBGL_ALWAYS_SOFTWARE=1
@@ -36,8 +38,6 @@ RUN groupadd -g ${GID} sine && \
     -p "$(openssl passwd -1 liusiyao)" \
     sine
 USER sine
-WORKDIR /home/sine
-
-RUN echo "source /opt/ros/humble/setup.bash" >> /home/sine/.bashrc
+WORKDIR /home/sine/code/ssine/robot-demo
 
 CMD bash

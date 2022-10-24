@@ -31,10 +31,10 @@ class MegaPiController:
             repr(int(round(vbl, 0))) + " vbr: " + repr(int(round(vbr, 0))))
     # I don't know why but sometimes the command was not effective
     for _ in range(1):
-      self.bot.motorRun(self.mfl, -vfl)
-      self.bot.motorRun(self.mfr, vfr)
-      self.bot.motorRun(self.mbl, -vbl)
-      self.bot.motorRun(self.mbr, vbr)
+      self.bot.motorRun(self.mfl, int(vfl))
+      self.bot.motorRun(self.mfr, int(vfr))
+      self.bot.motorRun(self.mbl, int(vbl))
+      self.bot.motorRun(self.mbr, int(vbr))
 
   def carStop(self):
     if self.verbose:

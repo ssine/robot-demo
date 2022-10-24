@@ -54,7 +54,7 @@ class AprilDetectorNode(Node):
       # tag size: whole picture in meters
       M, _, _ = self.detector.detection_pose(detection, [n_mtx[0][0], n_mtx[1][1], n_mtx[0][2], n_mtx[1][2]],
                                              tag_size=0.2)
-      t = M[:3, 3:]
+      t = M[:3, 3:] / 1.3045
       q = quaternion_from_matrix(M)
 
       # publish transform

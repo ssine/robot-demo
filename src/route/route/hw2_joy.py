@@ -4,8 +4,10 @@ import time
 import sys
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import qos_profile_system_default
 from geometry_msgs.msg import TransformStamped
+from sensor_msgs.msg import Joy
 from geometry_msgs.msg import Twist, Pose
 from tf2_ros.static_transform_broadcaster import StaticTransformBroadcaster
 from tf_transformations import quaternion_from_euler, euler_from_quaternion
@@ -22,25 +24,48 @@ tag_positions = {
     2: [-0.5, 1.0, 0.107, 0, -math.pi / 2, 0]
 }
 
+speed_rclock = 1.4
+speed_clock = 1.4
+speed_forward = 0.4
+speed_backward = 0.4
+speed_slide = 0.28
+eps = 1e-2
 
-def genTwistMsg(desired_twist):
+
+def get_msg(action):
+  joy_msg = Joy()
+  joy_msg.axes = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+  joy_msg.buttons = [0, 0, 0, 0, 0, 0, 0, 0]
+  if action == 'rclock':
+    joy_msg.axes[2] = 1.0
+  elif action == 'clock':
+    joy_msg.axes[2] = -1.0
+  elif action == 'forward':
+    joy_msg.axes[1] = 1.0
+  elif action == 'backward':
+    joy_msg.axes[1] = -1.0
+  elif action == 'left':
+    joy_msg.axes[0] = -1.0
+  elif action == 'right':
+    joy_msg.axes[0] = 1.0
+  return joy_msg
+
+
+def normalize_dr(dr):
+  while dr < -math.pi:
+    dr += 2 * math.pi
+  while dr > math.pi:
+    dr -= 2 * math.pi
+  return dr
+
+
+def getError(currentState, targetState):
   """
-    Convert the twist to twist msg.
-    """
-  twist_msg = Twist()
-  twist_msg.linear.x = desired_twist[0]
-  twist_msg.linear.y = desired_twist[1]
-  twist_msg.linear.z = 0.0
-  twist_msg.angular.x = 0.0
-  twist_msg.angular.y = 0.0
-  twist_msg.angular.z = desired_twist[2]
-  return twist_msg
-
-
-def coord(twist, current_state):
-  J = np.array([[np.cos(current_state[2]), np.sin(current_state[2]), 0.0],
-                [-np.sin(current_state[2]), np.cos(current_state[2]), 0.0], [0.0, 0.0, 1.0]])
-  return np.dot(J, twist)
+      return the different between two states
+      """
+  result = targetState - currentState
+  result[2] = (result[2] + np.pi) % (2 * np.pi) - np.pi
+  return result
 
 
 def inv_pose(pose: Pose):
@@ -58,21 +83,20 @@ class RoutePlanner(Node):
   def __init__(self, waypoints):
     super().__init__('route_planner')
     self.tf_static_broadcaster = StaticTransformBroadcaster(self)
-    self.pid = PIDcontroller(0.015, 0.006, 0.005)
-    self.pub_twist = self.create_publisher(Twist, "/twist", qos_profile_system_default)
-    self.create_subscription(AprilTagDetectionArray, "/apriltag_detection_array", self.on_detection,
-                             qos_profile_system_default)
+    self.pub_joy = self.create_publisher(Joy, "/joy", qos_profile_system_default)
+    self.create_subscription(
+        AprilTagDetectionArray, "/apriltag_detection_array", self.on_detection,
+        QoSProfile(reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT,
+                   history=QoSHistoryPolicy.RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+                   depth=1))
     self.tf_buffer = tf2_ros.Buffer()
     self.tf_listener = tf2_ros.TransformListener(self.tf_buffer, self)
-    self.position = np.array([0.0, 0.0, 0.0])  # x, y, w
-    self.target = np.array([0.0, 0.0, 0.0])
-    self.last_calibrated_position = np.array([0.0, 0.0, 0.0])
-    self.tn = 0
+    self.position = np.array([0.0, 0.0, 0.0])
     self.broadcast_bot_position()
+    self.last_action = 'run'
     self.broadcast_initial_positions()
     self.waypoints = waypoints
-    self.tick()
-    self.timer = self.create_timer(self.pid.timestep, self.tick)
+    self.timer = self.create_timer(0.5, self.tick)
 
   def tick(self):
     self.broadcast_bot_position()
@@ -80,28 +104,29 @@ class RoutePlanner(Node):
       return
     wp = self.waypoints[0]
 
+    # if self.last_action == 'run':
+    # wait for calibration
+    # return
+
     # check and switch waypoint
-    print('tn = ', self.tn)
-    if np.linalg.norm(self.pid.getError(self.position, wp)) < 0.05:
+    if np.linalg.norm(getError(self.position, wp)) < 0.05:
       print(f'waypoint {wp} has reached')
       self.waypoints = self.waypoints[1:]
       if len(self.waypoints) < 1:
         print('no more waypoints, stopping')
-        self.pub_twist.publish(genTwistMsg(np.array([0.0, 0.0, 0.0])))
+        self.pub_joy.publish(get_msg('stop'))
         # self.destroy_node()
         return
       wp = self.waypoints[0]
       print(f'next waypoint: {wp}')
-      self.pid.setTarget(wp)
 
-    update_value = self.pid.update(self.position)
-    c = coord(update_value, self.position)
-    self.tn = np.linalg.norm(c)
-    self.pub_twist.publish(genTwistMsg(c))
-    self.position += update_value
-    print('updated position: ', self.position)
+    self.to_state(wp)
+    self.last_action = 'run'
 
   def on_detection(self, tags_msg: AprilTagDetectionArray):
+    return
+    if self.last_action == 'calibration':
+      return
     estimated_positions = []
     for detection in tags_msg.detections:
       if detection.id not in tag_positions:
@@ -114,8 +139,44 @@ class RoutePlanner(Node):
       estimated_positions.append(np.array([x, y, w + math.pi / 2]))
     if len(estimated_positions) > 0:
       self.position = np.mean(estimated_positions, axis=0)
-      self.last_calibrated_position[:] = self.position[:]
+      self.last_action = 'calibration'
       print('calibrated position: ', self.position)
+
+  def to_orientation(self, r):
+    dr = normalize_dr(r - self.position[2])
+    if dr < 0:
+      self.pub_joy.publish(get_msg('clock'))
+      time.sleep(-dr / speed_clock)
+    else:
+      self.pub_joy.publish(get_msg('rclock'))
+      time.sleep(dr / speed_rclock)
+    self.pub_joy.publish(get_msg('stop'))
+    self.position[2] = r
+
+  def move_line(self, distance):
+    if distance > 0:
+      self.pub_joy.publish(get_msg('forward'))
+      time.sleep(distance / speed_forward)
+    else:
+      self.pub_joy.publish(get_msg('backward'))
+      time.sleep(-distance / speed_backward)
+    self.pub_joy.publish(get_msg('stop'))
+
+  def to_state(self, new_state):
+    dx = new_state[0] - self.position[0]
+    dy = new_state[1] - self.position[1]
+
+    r = math.atan2(dy, dx)
+    if abs(r) > eps:
+      self.to_orientation(r)
+
+    d = math.sqrt(dx**2 + dy**2)
+    if d > eps:
+      self.move_line(d)
+
+    self.to_orientation(new_state[2])
+    self.position = new_state
+    print(self.position)
 
   def broadcast_bot_position(self):
     t = TransformStamped()
@@ -194,7 +255,7 @@ def main():
   try:
     rclpy.spin(node)
   except:
-    node.pub_twist.publish(genTwistMsg(np.array([0.0, 0.0, 0.0])))
+    node.pub_joy.publish(get_msg('stop'))
     raise
   rclpy.shutdown()
 

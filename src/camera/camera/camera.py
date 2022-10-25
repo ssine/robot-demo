@@ -8,7 +8,8 @@ from sensor_msgs.msg import Image, CompressedImage
 from std_msgs.msg import Header
 
 fps = 30
-gst_pipeline = f'v4l2src device=/dev/video0 ! image/jpeg,width=1920,height=1080,framerate={fps}/1 ! jpegdec ! videoconvert ! video/x-raw,format=BGR ! appsink'
+# gst_pipeline = f'v4l2src device=/dev/video0 ! image/jpeg,width=1920,height=1080,framerate={fps}/1 ! jpegdec ! videoconvert ! video/x-raw,format=BGR ! appsink'
+gst_pipeline = f'v4l2src device=/dev/video0 ! image/jpeg,width=1024,height=576,framerate={fps}/1 ! jpegdec ! videoconvert ! video/x-raw,format=BGR ! appsink'
 
 
 class CameraNode(Node):
@@ -30,7 +31,7 @@ class CameraNode(Node):
       # msg = self.bridge.cv2_to_imgmsg(frame, header=header)
       # print(msg)
       self.pub_cam.publish(self.bridge.cv2_to_imgmsg(frame, header=header))
-      self.pub_cam_comp.publish(self.bridge.cv2_to_compressed_imgmsg(frame))
+      # self.pub_cam_comp.publish(self.bridge.cv2_to_compressed_imgmsg(frame))
       if self.idx % 100 == 0:
         cv2.imwrite('t.png', frame)
         print('sample written to t.png')

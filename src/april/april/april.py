@@ -3,6 +3,7 @@ import numpy as np
 import apriltag
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
 from rclpy.qos import qos_profile_system_default
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
@@ -17,9 +18,15 @@ from interface.msg import AprilTagDetection, AprilTagDetectionArray
 options = apriltag.DetectorOptions(families='tag36h11')
 detector = apriltag.Detector(options)
 
-mtx = np.array([[1.40195505e+03, 0.00000000e+00, 9.37821211e+02], [0.00000000e+00, 1.40370812e+03, 5.18206208e+02],
+# logitech c1000e
+# mtx = np.array([[1.40195505e+03, 0.00000000e+00, 9.37821211e+02], [0.00000000e+00, 1.40370812e+03, 5.18206208e+02],
+#                 [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
+# dist = np.array([[2.51876482e-01, -7.28886391e-01, -2.36489737e-04, -1.03891640e-03, 7.06549536e-01]])
+
+# rb5 main camera (IMX 577)
+mtx = np.array([[1.04308464e+03, 0.00000000e+00, 1.03403678e+03], [0.00000000e+00, 1.04146886e+03, 4.95442564e+02],
                 [0.00000000e+00, 0.00000000e+00, 1.00000000e+00]])
-dist = np.array([[2.51876482e-01, -7.28886391e-01, -2.36489737e-04, -1.03891640e-03, 7.06549536e-01]])
+dist = np.array([[0.07938742, -0.11100588, 0.00046955, 0.00269768, 0.04732526]])
 
 
 class AprilDetectorNode(Node):
@@ -29,7 +36,11 @@ class AprilDetectorNode(Node):
     self.bridge = CvBridge()
     self.detector = apriltag.Detector(apriltag.DetectorOptions(families='tag36h11'))
     self.caster = TransformBroadcaster(self)
-    self.create_subscription(Image, '/camera_0', self.on_image, qos_profile_system_default)
+    self.create_subscription(
+        Image, '/camera_0', self.on_image,
+        QoSProfile(reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT,
+                   history=QoSHistoryPolicy.RMW_QOS_POLICY_HISTORY_KEEP_LAST,
+                   depth=1))
     self.pose_pub = self.create_publisher(PoseArray, '/april_poses', qos_profile_system_default)
     self.det_pub = self.create_publisher(AprilTagDetectionArray, '/apriltag_detection_array',
                                          qos_profile_system_default)

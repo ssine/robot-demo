@@ -159,13 +159,28 @@ class Route(Node):
   def on_detection(self, tags_msg: AprilTagDetectionArray):
     tag_dets = {}
     for detection in tags_msg.detections:
-      pose = detection.pose
+      pose = self.transform_pose(detection.pose, 'camera_0', 'map')
       x = pose.position.x
       y = pose.position.y
       _, _, w = euler_from_quaternion([pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w])
       tag_dets[detection.id] = [x, y, w]
     self.last_measure_time = time.time()
     self.measurement['tags'] = tag_dets
+    self.measurement['bot'] = self.state
+    try:
+      bot_pose_estimates = []
+      for detection in tags_msg.detections:
+        est_pose = self.transform_pose(inv_pose(detection.pose), f'slam_tag_{detection.id}', 'map')
+        x = est_pose.position.x
+        y = est_pose.position.y
+        _, _, w = euler_from_quaternion(
+            [est_pose.orientation.x, est_pose.orientation.y, est_pose.orientation.z, est_pose.orientation.w])
+        bot_pose_estimates.append(np.array([x, y, w + math.pi / 2]))
+        # hack: reduce measurement impact as control signal is well enough
+        self.measurement['bot'] = self.state * 0.8 + np.mean(bot_pose_estimates, axis=0) * 0.2
+    except Exception as err:
+      print('no slam pose available, skip bot position inference.')
+    # print(self.measurement)
 
   def broadcast_tag_positions(self):
     tag_status = self.slam.get_tag_status()

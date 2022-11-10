@@ -18,6 +18,7 @@ setup(
     license='TODO: License declaration',
     tests_require=['pytest'],
     entry_points={
-        'console_scripts': ['main = route.key_joy_node:main', 'hw1 = route.hw1:main', 'hw2 = route.hw2:main'],
+        'console_scripts':
+        ['main = route.key_joy_node:main', 'hw1 = route.hw1:main', 'hw2 = route.hw2:main', 'hw3 = route.hw3:main'],
     },
 )

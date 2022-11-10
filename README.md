@@ -15,3 +15,12 @@ make attach-docker
 Run `sudo python3 ./script/camera/capture_chessboard.py`, press `c` to capture current image. Capture about 15 images and press `q` tu quit.
 
 Run `python3 ./script/camera/calibrate_camera.py` to get camera parameters.
+
+## Running Tasks
+
+```bash
+colcon build --symlink-install --merge-install
+. ./install/setup.bash
+ros2 run route hw3
+ros2 launch ./launch/hw3.yaml
+```

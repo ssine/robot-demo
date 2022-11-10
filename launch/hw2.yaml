@@ -1,10 +1,10 @@
 launch:
-    - node:
-          pkg: "camera"
-          exec: "main"
-    - node:
-          pkg: "april"
-          exec: "main"
-    - node:
-          pkg: "control"
-          exec: "hw2"
+      - node:
+              pkg: "camera"
+              exec: "main"
+      - node:
+              pkg: "april"
+              exec: "main"
+      - node:
+              pkg: "control"
+              exec: "main"

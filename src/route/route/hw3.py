@@ -16,8 +16,8 @@ from tf_transformations import quaternion_from_euler, euler_from_quaternion
 import tf2_geometry_msgs
 from .kalman_slam import KalmanSLAM
 
-speed_rclock = 1.64
-speed_forward = 0.42
+speed_rclock = 1
+speed_forward = 0.3
 eps = 1e-2
 
 
@@ -40,29 +40,53 @@ def get_msg(action):
   return joy_msg
 
 
-def normalize_dr(dr):
-  while dr < -math.pi:
-    dr += 2 * math.pi
-  while dr > math.pi:
-    dr -= 2 * math.pi
-  return dr
+def inv_pose(pose: Pose):
+  # inverse the position
+  pose.position.x = -pose.position.x
+  pose.position.y = -pose.position.y
+  pose.position.z = -pose.position.z
+  # to inverse a quaternion, negate the w. see http://wiki.ros.org/tf2/Tutorials/Quaternions
+  pose.orientation.w = -pose.orientation.w
+  return pose
 
 
 class Route(Node):
 
   def __init__(self):
     super().__init__('route_planner')
-    self.state = np.zeros(3)
-    self.slam = KalmanSLAM(np.zeros(3))
+    init_state = np.zeros(3)
+    init_state[2] = 0.3927
+    self.state = init_state
+    self.slam = KalmanSLAM(init_state.copy())
+    # square
     self.controls = [
-        ['forward', 0.5 / speed_forward],
+        ['backward', 0.5 / speed_forward],
         ['rclock', (math.pi / 2) / speed_rclock],
-        ['forward', 0.5 / speed_forward],
+        ['backward', 0.5 / speed_forward],
         ['rclock', (math.pi / 2) / speed_rclock],
-        ['forward', 0.5 / speed_forward],
+        ['backward', 0.5 / speed_forward],
         ['rclock', (math.pi / 2) / speed_rclock],
-        ['forward', 0.5 / speed_forward],
+        ['backward', 0.5 / speed_forward],
         ['rclock', (math.pi / 2) / speed_rclock],
+    ]
+    # octagon
+    self.controls = [
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
+        ['backward', 0.2706 / speed_forward],
+        ['rclock', (math.pi / 4) / speed_rclock],
     ]
     self.last_ctrl_time = -1
     self.last_tick_time = -1
@@ -83,10 +107,14 @@ class Route(Node):
 
     self.timer = self.create_timer(0.05, self.tick)
 
+    self.dumped = False
+
   def tick(self):
-    self.broadcast_bot_position()
-    return
     if len(self.controls) < 1:
+      self.pub_joy.publish(get_msg('stop'))
+      if not self.dumped:
+        self.slam.export_state('st.pkl')
+        self.dumped = True
       return
     self.broadcast_bot_position()
     ctl = self.controls[0]
@@ -94,7 +122,7 @@ class Route(Node):
 
     # issue initial control
     if self.last_ctrl_time == -1:
-      # self.pub_joy.publish(get_msg(ctl[0]))
+      self.pub_joy.publish(get_msg(ctl[0]))
       self.last_ctrl_time = now
       self.last_tick_time = now
       return
@@ -102,17 +130,20 @@ class Route(Node):
     # update state
     dt = now - self.last_tick_time
     control = np.zeros(3)
-    if ctl[0] == 'forward':
+    if ctl[0] == 'backward':
       control[0] = speed_forward * dt * np.cos(self.state[2])
       control[1] = speed_forward * dt * np.sin(self.state[2])
     elif ctl[0] == 'rclock':
       control[2] = speed_rclock * dt
-    m = {'bot': self.state + control, 'tags': {}}
+    self.slam.step(control)
     if now - self.last_measure_time < 0.07:
       # make sure the measurement is valid
-      m = self.measurement
-    self.slam.step(control, m)
+      self.slam.update(self.measurement)
+      print('hit')
+    else:
+      print('not hit')
     self.state = self.slam.get_bot_state()
+    self.broadcast_bot_position()
     self.broadcast_tag_positions()
     # print('update result: ', self.state, self.slam.get_tag_status())
 
@@ -121,7 +152,7 @@ class Route(Node):
       self.controls = self.controls[1:]
       if len(self.controls) > 0:
         ctl = self.controls[0]
-        # self.pub_joy.publish(get_msg(ctl[0]))
+        self.pub_joy.publish(get_msg(ctl[0]))
         self.last_ctrl_time = now
 
     self.last_tick_time = time.time()
@@ -137,6 +168,19 @@ class Route(Node):
     self.last_measure_time = time.time()
     self.measurement['tags'] = tag_dets
     self.measurement['bot'] = self.state
+    try:
+      bot_pose_estimates = []
+      for detection in tags_msg.detections:
+        est_pose = self.transform_pose(inv_pose(detection.pose), f'slam_tag_{detection.id}', 'map')
+        x = est_pose.position.x
+        y = est_pose.position.y
+        _, _, w = euler_from_quaternion(
+            [est_pose.orientation.x, est_pose.orientation.y, est_pose.orientation.z, est_pose.orientation.w])
+        bot_pose_estimates.append(np.array([x, y, w + math.pi / 2]))
+        # hack: reduce measurement impact as control signal is well enough
+        self.measurement['bot'] = self.state * 0.9 + np.mean(bot_pose_estimates, axis=0) * 0.1
+    except Exception as err:
+      print('no slam pose available, skip bot position inference.')
     # print(self.measurement)
 
   def broadcast_tag_positions(self):
@@ -205,21 +249,10 @@ class Route(Node):
     except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException):
       raise
 
-  def run(self):
-    unit = 0.5
-    # self.pub_joy.publish(get_msg('rclock'))
-    # time.sleep(0.1 / speed_rclock)
-    # self.pub_joy.publish(get_msg('stop'))
-    # time.sleep(0.3)
-    # self.pub_joy.publish(get_msg('backward'))
-    # time.sleep(0.05 / speed_backward)
-    # self.pub_joy.publish(get_msg('stop'))
-
 
 def main():
   rclpy.init()
   key_joy_node = Route()
-  key_joy_node.run()
   rclpy.spin(key_joy_node)
   rclpy.shutdown()
 

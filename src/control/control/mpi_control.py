@@ -30,7 +30,7 @@ class MegaPiController:
       print("Set Motors: vfl: " + repr(int(round(vfl, 0))) + " vfr: " + repr(int(round(vfr, 0))) + " vbl: " +
             repr(int(round(vbl, 0))) + " vbr: " + repr(int(round(vbr, 0))))
     # I don't know why but sometimes the command was not effective
-    for _ in range(1):
+    for _ in range(2):
       self.bot.motorRun(self.mfl, int(vfl))
       self.bot.motorRun(self.mfr, int(vfr))
       self.bot.motorRun(self.mbl, int(vbl))

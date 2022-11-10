@@ -21,6 +21,12 @@ Run `python3 ./script/camera/calibrate_camera.py` to get camera parameters.
 ```bash
 colcon build --symlink-install --merge-install
 . ./install/setup.bash
-ros2 run route hw3
 ros2 launch ./launch/hw3.yaml
+ros2 run route hw3
+```
+
+## Record & Replay
+
+```bash
+ros2 bag record -o record/rect /apriltag_detection_array
 ```

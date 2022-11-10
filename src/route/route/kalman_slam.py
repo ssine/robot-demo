@@ -1,14 +1,18 @@
 import numpy as np
+import time
+import pickle
 
 
 class KalmanSLAM:
 
-  def __init__(self, state=np.array([0, 0, 1])) -> None:
+  def __init__(self, state) -> None:
     self.x = state
     self.P = np.zeros((self.x.shape[0], self.x.shape[0]))
     # keep the order of seen tags
     self.tag_ids = []
     self.fit_state()
+    self.history = []
+    self.save_state()
 
   def fit_state(self):
     # fit matrices size to the state vector
@@ -17,8 +21,8 @@ class KalmanSLAM:
     # control input
     self.G = np.identity(self.x.shape[0])
     # system & sensor noise
-    self.Q = np.identity(self.x.shape[0]) * 0.1
-    self.R = np.identity(self.x.shape[0]) * 0.1
+    self.Q = np.identity(self.x.shape[0]) * 0.001
+    self.R = np.identity(self.x.shape[0]) * 0.7
     # Sigma: covariance matrix
     # keep the last covariance
     P_ = np.zeros((self.x.shape[0], self.x.shape[0]))
@@ -34,6 +38,15 @@ class KalmanSLAM:
     self.P = self.F @ self.P @ self.F.T + self.Q
 
   def update(self, measurement):
+    '''
+    measurement: {
+      bot: [x, y, r],
+      tags: {
+        1: [x_t1, y_t1, r_t1],
+        2: ...
+      }
+    }
+    '''
     unseen_tags = list(measurement['tags'].keys() - set(self.tag_ids))
     if len(unseen_tags) > 0:
       # expand the corresponding variables
@@ -53,25 +66,26 @@ class KalmanSLAM:
     K = self.P @ self.H.T @ np.linalg.inv(self.H @ self.P @ self.H.T + self.R)
     self.x = self.x + K @ (z - self.H @ self.x)
     self.P = (np.identity(K.shape[0]) - K @ self.H) @ self.P
+    self.save_state()
 
-  def step(self, control, measurement):
+  def step(self, control):
     '''
     control: [dx, dy, dr]
-    measurement: {
-      bot: [x, y, r],
-      tags: {
-        1: [x_t1, y_t1, r_t1],
-        2: ...
-      }
-    }
     '''
     control_full = np.zeros_like(self.x)
     control_full[:3] = control
     self.predict(control_full)
-    self.update(measurement)
+    self.save_state()
 
   def get_tag_status(self):
     return {tid: self.x[(idx + 1) * 3:(idx + 2) * 3] for idx, tid in enumerate(self.tag_ids)}
 
   def get_bot_state(self):
     return self.x[:3]
+
+  def save_state(self):
+    self.history.append({'x': self.x.copy(), 'P': self.P.copy(), 'tag_ids': [*self.tag_ids], 'time': time.time()})
+
+  def export_state(self, path):
+    with open(path, 'wb') as f:
+      pickle.dump(self.history, f)

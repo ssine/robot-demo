@@ -20,6 +20,8 @@ RUN apt-get install -y tmux openssh-client ros-humble-tf-transformations
 
 RUN pip install apriltag transforms3d
 
+RUN pip install scikit-image networkx[default]
+
 RUN sed -i '86 i \ \ \ \ \ \ \ \ th.daemon = True' /usr/local/lib/python3.10/dist-packages/megapi_python3.py
 
 RUN echo "source /opt/ros/humble/setup.bash\nsource ./install/setup.bash" >> /etc/profile.d/ros.sh

@@ -76,7 +76,7 @@ def get_max_safety():
 
   p = nx.shortest_path(g, 0, n - 1)
   wps = np.array(list(zip(xs[p], ys[p]))) * pixel_len
-  return compress_waypoints(list(wps))
+  return [list(wp) for wp in compress_waypoints(list(wps))]
 
 
 def get_min_distance():
@@ -98,4 +98,4 @@ def get_min_distance():
 
   p = nx.shortest_path(g, 0, n - 1, weight='weight')
   wps = np.array(list(zip(xs[p], ys[p]))) * pixel_len
-  return list(wps)
+  return [list(wp) for wp in wps]

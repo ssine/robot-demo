@@ -74,7 +74,7 @@ def get_max_safety():
     for idx in idxs:
       g.add_edge(i, idx)
 
-  p = nx.shortest_path(g, 0, n - 1)
+  p = list(nx.all_shortest_paths(g, 0, n - 1))[1]
   wps = np.array(list(zip(xs[p], ys[p]))) * pixel_len
   return [list(wp) for wp in compress_waypoints(list(wps))]
 
@@ -96,6 +96,6 @@ def get_min_distance():
           cfg_map[path[:, 0] - 3, path[:, 1] - 3] > 0.5) or np.all(cfg_map[path[:, 0] + 3, path[:, 1] + 3] > 0.5):
         g.add_edge(i, j, weight=np.sqrt((xs[i] - xs[j])**2 + (ys[i] - ys[j])**2))
 
-  p = nx.shortest_path(g, 0, n - 1, weight='weight')
+  p = list(nx.all_shortest_paths(g, 0, n - 1, weight='weight'))[1]
   wps = np.array(list(zip(xs[p], ys[p]))) * pixel_len
   return [list(wp) for wp in wps]
